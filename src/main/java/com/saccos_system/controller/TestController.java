@@ -1,7 +1,7 @@
 package com.saccos_system.controller;
 
 
-import com.saccos_system.domain.StaffProfile;
+import com.saccos_system.model.StaffProfile;
 import com.saccos_system.repository.StaffProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

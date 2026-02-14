@@ -2,7 +2,7 @@ package com.saccos_system.service;
 
 
 
-import com.saccos_system.domain.LookupStatus;
+import com.saccos_system.model.LookupStatus;
 import com.saccos_system.repository.LookupStatusRepository;
 import org.springframework.stereotype.Service;
 import java.util.List;

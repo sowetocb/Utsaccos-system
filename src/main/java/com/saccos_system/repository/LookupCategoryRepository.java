@@ -1,6 +1,6 @@
 package com.saccos_system.repository;
 
-import com.saccos_system.domain.LookupCategory;
+import com.saccos_system.model.LookupCategory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;

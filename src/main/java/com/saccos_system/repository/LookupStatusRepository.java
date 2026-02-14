@@ -1,6 +1,6 @@
 package com.saccos_system.repository;
 
-import com.saccos_system.domain.LookupStatus;
+import com.saccos_system.model.LookupStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
@@ -11,3 +11,5 @@ public interface LookupStatusRepository extends JpaRepository<LookupStatus, Inte
     Optional<LookupStatus> findByStatusCode(String statusCode);
     List<LookupStatus> findByCategory_CategoryName(String categoryName);
 }
+
+

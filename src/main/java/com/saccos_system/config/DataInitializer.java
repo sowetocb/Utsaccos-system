@@ -1,8 +1,8 @@
 package com.saccos_system.config;
 
 
-import com.saccos_system.domain.LookupCategory;
-import com.saccos_system.domain.LookupStatus;
+import com.saccos_system.model.LookupCategory;
+import com.saccos_system.model.LookupStatus;
 import com.saccos_system.repository.LookupCategoryRepository;
 import com.saccos_system.repository.LookupStatusRepository;
 import lombok.RequiredArgsConstructor;

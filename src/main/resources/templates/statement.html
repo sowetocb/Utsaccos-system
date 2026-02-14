@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; }
+        .statement { max-width: 800px; margin: 0 auto; padding: 30px; }
+        .header { border-bottom: 2px solid #2c3e50; padding-bottom: 20px; margin-bottom: 20px; }
+        .sacco-name { color: #2c3e50; font-size: 24px; font-weight: bold; }
+        .statement-title { color: #7f8c8d; font-size: 18px; margin-top: 5px; }
+        .member-info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .summary { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .summary-item { flex: 1; text-align: center; padding: 15px; }
+        .summary-item.positive { color: #27ae60; }
+        .summary-item.negative { color: #e74c3c; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th { background: #34495e; color: white; padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #ddd; }
+        .total { font-weight: bold; background: #ecf0f1; }
+        .footer { margin-top: 40px; text-align: center; color: #7f8c8d; font-size: 12px; }
+    </style>
+</head>
+<body>
+<div class="statement">
+    <div class="header">
+        <div class="sacco-name">SACCO SYSTEM</div>
+        <div class="statement-title">Monthly Statement</div>
+        <div th:text="${statement.period}" style="color: #7f8c8d;"></div>
+    </div>
+
+    <div class="member-info">
+        <table style="width: 100%; background: none; margin: 0;">
+            <tr>
+                <td><strong>Member:</strong> <span th:text="${statement.memberName}"></span></td>
+                <td><strong>Member No:</strong> <span th:text="${statement.memberNumber}"></span></td>
+            </tr>
+            <tr>
+                <td><strong>Account:</strong> <span th:text="${statement.accountNumber}"></span></td>
+                <td><strong>Statement No:</strong> <span th:text="${statement.statementNumber}"></span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="summary">
+        <div class="summary-item">
+            <div style="font-size: 14px; color: #7f8c8d;">Opening Balance</div>
+            <div style="font-size: 20px; font-weight: bold;" th:text="${#numbers.formatDecimal(statement.openingBalance, 1, 2)}"></div>
+        </div>
+        <div class="summary-item positive">
+            <div style="font-size: 14px;">Total Deposits</div>
+            <div style="font-size: 20px; font-weight: bold;" th:text="${#numbers.formatDecimal(statement.totalDeposits, 1, 2)}"></div>
+        </div>
+        <div class="summary-item negative">
+            <div style="font-size: 14px;">Total Withdrawals</div>
+            <div style="font-size: 20px; font-weight: bold;" th:text="${#numbers.formatDecimal(statement.totalWithdrawals, 1, 2)}"></div>
+        </div>
+        <div class="summary-item positive">
+            <div style="font-size: 14px;">Interest Earned</div>
+            <div style="font-size: 20px; font-weight: bold;" th:text="${#numbers.formatDecimal(statement.totalInterest, 1, 2)}"></div>
+        </div>
+        <div class="summary-item">
+            <div style="font-size: 14px; color: #7f8c8d;">Closing Balance</div>
+            <div style="font-size: 24px; font-weight: bold; color: #2c3e50;" th:text="${#numbers.formatDecimal(statement.closingBalance, 1, 2)}"></div>
+        </div>
+    </div>
+
+    <h3>Transaction History</h3>
+    <table>
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Reference</th>
+            <th style="text-align: right;">Deposit</th>
+            <th style="text-align: right;">Withdrawal</th>
+            <th style="text-align: right;">Balance</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="tx : ${statement.transactions}">
+            <td th:text="${tx.date}"></td>
+            <td th:text="${tx.description}"></td>
+            <td th:text="${tx.reference}"></td>
+            <td style="text-align: right; color: #27ae60;" th:text="${tx.deposit > 0} ? ${#numbers.formatDecimal(tx.deposit, 1, 2)} : ''"></td>
+            <td style="text-align: right; color: #e74c3c;" th:text="${tx.withdrawal > 0} ? ${#numbers.formatDecimal(tx.withdrawal, 1, 2)} : ''"></td>
+            <td style="text-align: right; font-weight: bold;" th:text="${#numbers.formatDecimal(tx.balance, 1, 2)}"></td>
+        </tr>
+        </tbody>
+        <tfoot>
+        <tr class="total">
+            <td colspan="5" style="text-align: right;"><strong>Closing Balance:</strong></td>
+            <td style="text-align: right; font-weight: bold;" th:text="${#numbers.formatDecimal(statement.closingBalance, 1, 2)}"></td>
+        </tr>
+        </tfoot>
+    </table>
+
+    <div class="footer">
+        <p>Generated on: <span th:text="${#dates.format(statement.generatedDate, 'dd MMM yyyy HH:mm')}"></span></p>
+        <p>This is an electronically generated statement and does not require a signature.</p>
+    </div>
+</div>
+</body>
+</html>
