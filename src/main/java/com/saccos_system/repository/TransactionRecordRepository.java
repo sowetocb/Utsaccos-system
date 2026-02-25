@@ -13,46 +13,24 @@ import java.util.Optional;
 
 @Repository
 public interface TransactionRecordRepository extends JpaRepository<TransactionRecord, Long> {
-
-    //  FIXED: Changed from 'savingId' to 'savingsAccount.savingId'
     List<TransactionRecord> findBySavingsAccount_SavingIdOrderByTransactionDateDesc(Long savingId);
-
-    //  FIXED: Changed from 'savingId' to 'savingsAccount.savingId'
     @Query("SELECT t FROM TransactionRecord t WHERE t.savingsAccount.savingId = :savingId ORDER BY t.transactionDate DESC LIMIT :limit")
     List<TransactionRecord> findTopNBySavingsAccount_SavingIdOrderByTransactionDateDesc(@Param("savingId") Long savingId, @Param("limit") Integer limit);
-
-    //  FIXED: Changed from 'savingId' to 'savingsAccount.savingId'
     List<TransactionRecord> findBySavingsAccount_SavingIdAndTransactionDateAfterOrderByTransactionDateDesc(Long savingId, LocalDateTime date);
-
-    // Find by date range
     List<TransactionRecord> findByTransactionDateBetween(LocalDateTime start, LocalDateTime end);
-
-    //  FIXED: Changed from 'savingId' to 'savingsAccount.savingId'
     List<TransactionRecord> findBySavingsAccount_SavingIdAndTransactionDateBetweenOrderByTransactionDate(Long savingId, LocalDateTime start, LocalDateTime end);
-
-    //  FIXED: Changed from 'savingId' to 'savingsAccount.savingId'
     Optional<TransactionRecord> findTopBySavingsAccount_SavingIdAndTransactionDateBeforeOrderByTransactionDateDesc(Long savingId, LocalDateTime date);
-
-    // Find top 5 by Profile ID (for dashboard)
     @Query("SELECT t FROM TransactionRecord t " +
             "WHERE t.savingsAccount.profile.profileId = :profileId " +
             "ORDER BY t.transactionDate DESC " +
             "LIMIT 5")
     List<TransactionRecord> findTop5BySavingsAccount_Profile_ProfileIdOrderByTransactionDateDesc(@Param("profileId") Long profileId);
-
-    // Find all by Profile ID
     List<TransactionRecord> findBySavingsAccount_Profile_ProfileIdOrderByTransactionDateDesc(Long profileId);
-
-    // Find by transaction type and date range
     List<TransactionRecord> findByTransactionTypeAndTransactionDateBetween(String transactionType, LocalDateTime start, LocalDateTime end);
-
-    // Get total deposits for a profile
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM TransactionRecord t " +
             "WHERE t.savingsAccount.profile.profileId = :profileId " +
             "AND t.transactionType = 'DEPOSIT'")
     BigDecimal getTotalDepositsByProfileId(@Param("profileId") Long profileId);
-
-    // Get total withdrawals for a profile
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM TransactionRecord t " +
             "WHERE t.savingsAccount.profile.profileId = :profileId " +
             "AND t.transactionType = 'WITHDRAWAL'")

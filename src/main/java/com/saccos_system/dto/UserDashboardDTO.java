@@ -7,10 +7,10 @@ import java.util.List;
 
 @Data
 public class UserDashboardDTO {
+
     private String memberName;
     private String memberNumber;
     private String memberSince;
-
     // Savings Summary
     private BigDecimal totalSavings;
     private BigDecimal lastMonthSavings;

@@ -201,4 +201,23 @@ public class NotificationService {
         }
         throw new RuntimeException("Invalid authorization header");
     }
+
+    public void sendEmergencyLoanApprovalNotification(SystemUser user, LoanApplication application) {
+        Notification notification = new Notification();
+        notification.setUser(user);
+        notification.setProfile(user.getProfile());
+        notification.setTitle("🚨 EMERGENCY LOAN APPROVED - Funds Disbursed");
+        notification.setMessage(String.format(
+                "Your emergency loan of %,.2f has been AUTO-APPROVED and funds have been disbursed to your savings account immediately!",
+                application.getAmount()));
+        notification.setType("SUCCESS");
+        notification.setCategory("LOAN");
+        notification.setIsImportant(true);
+        notification.setActionUrl("/api/loans/" + application.getApplicationNumber());
+
+        notificationRepository.save(notification);
+
+
+    }
+
 }

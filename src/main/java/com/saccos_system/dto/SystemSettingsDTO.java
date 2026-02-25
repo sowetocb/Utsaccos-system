@@ -13,4 +13,6 @@ public class SystemSettingsDTO {
     private Integer loanTermMonths;
     private Boolean maintenanceMode;
     private String systemMessage;
+    private BigDecimal emergencyLoanInterestRate;
+    private Integer emergencyLoanMaxTerm;
 }

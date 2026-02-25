@@ -8,10 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface SavingsTransactionTypeRepository extends JpaRepository<SavingsTransactionType, Integer> {
-
     Optional<SavingsTransactionType> findByTypeCode(String typeCode);
-
     Optional<SavingsTransactionType> findByTypeName(String typeName);
-
     boolean existsByTypeCode(String typeCode);
 }

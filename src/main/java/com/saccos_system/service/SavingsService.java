@@ -132,11 +132,11 @@ public class SavingsService {
 
         List<TransactionRecord> transactions;
         if (limit != null && limit > 0) {
-            // ✅ FIXED: Changed from findTopNBySavingIdOrderByTransactionDateDesc to findTopNBySavingsAccount_SavingIdOrderByTransactionDateDesc
+            //  Changed from findTopNBySavingIdOrderByTransactionDateDesc to findTopNBySavingsAccount_SavingIdOrderByTransactionDateDesc
             transactions = transactionRepository
                     .findTopNBySavingsAccount_SavingIdOrderByTransactionDateDesc(savingsAccount.getSavingId(), limit);
         } else {
-            // ✅ FIXED: Changed from findBySavingIdOrderByTransactionDateDesc to findBySavingsAccount_SavingIdOrderByTransactionDateDesc
+            //  Changed from findBySavingIdOrderByTransactionDateDesc to findBySavingsAccount_SavingIdOrderByTransactionDateDesc
             transactions = transactionRepository
                     .findBySavingsAccount_SavingIdOrderByTransactionDateDesc(savingsAccount.getSavingId());
         }
@@ -169,7 +169,7 @@ public class SavingsService {
 
         // Get last month's transactions
         LocalDateTime oneMonthAgo = LocalDateTime.now().minusMonths(1);
-        // ✅ FIXED: Changed from findBySavingIdAndTransactionDateAfterOrderByTransactionDateDesc to findBySavingsAccount_SavingIdAndTransactionDateAfterOrderByTransactionDateDesc
+        // Changed from findBySavingIdAndTransactionDateAfterOrderByTransactionDateDesc to findBySavingsAccount_SavingIdAndTransactionDateAfterOrderByTransactionDateDesc
         List<TransactionRecord> recentTransactions = transactionRepository
                 .findBySavingsAccount_SavingIdAndTransactionDateAfterOrderByTransactionDateDesc(
                         savingsAccount.getSavingId(), oneMonthAgo);

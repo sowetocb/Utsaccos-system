@@ -12,13 +12,11 @@ public class StatementResponseDTO {
     private String memberName;
     private String memberNumber;
     private String accountNumber;
-
     private BigDecimal openingBalance;
     private BigDecimal totalDeposits;
     private BigDecimal totalWithdrawals;
     private BigDecimal totalInterest;
     private BigDecimal closingBalance;
-
     private List<StatementTransactionDTO> transactions;
     private LocalDateTime generatedDate;
 }

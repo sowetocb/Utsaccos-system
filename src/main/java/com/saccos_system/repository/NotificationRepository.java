@@ -15,7 +15,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUser_UserIdAndIsReadFalseOrderByCreatedDateDesc(Long userId);
     List<Notification> findByUser_UserIdAndCategoryOrderByCreatedDateDesc(Long userId, String category);
     long countByUser_UserIdAndIsReadFalse(Long userId);
-
     @Query("SELECT n FROM Notification n WHERE " +
             "(n.user.userId = :userId OR n.profile.profileId = :profileId) " +
             "AND n.isRead = false " +

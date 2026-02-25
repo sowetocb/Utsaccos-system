@@ -18,13 +18,6 @@ public class AdminDashboardDTO {
     private Integer totalAccountants;
     private List<DashboardChartDTO> savingsTrend;
     private List<DashboardChartDTO> loansTrend;
+    private Integer pendingEmergencyApplications;
 
-    // Lombok @Data generates all these methods automatically:
-    // - getTotalAdmins()
-    // - setTotalAdmins(Integer totalAdmins)
-    // - getTotalLoanOfficers()
-    // - setTotalLoanOfficers(Integer totalLoanOfficers)
-    // - getTotalAccountants()
-    // - setTotalAccountants(Integer totalAccountants)
-    // etc.
 }

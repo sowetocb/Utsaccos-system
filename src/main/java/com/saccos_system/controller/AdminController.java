@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
-
+import com.saccos_system.service.LoanService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class AdminController {
 
     private final AdminService adminService;
-
+    private final LoanService loanService;
     // User Management
     @GetMapping("/users")
     @Operation(summary = "Get all users (Admin only)")
@@ -153,6 +153,36 @@ public class AdminController {
         log.info("Generating loans report from {} to {}", startDate, endDate);
         LoansReportDTO report = adminService.getLoansReport(token, startDate, endDate);
         return ResponseEntity.ok(report);
+    }
+
+    @GetMapping("/loans/emergency-pending")
+    @Operation(summary = "Get emergency pending applications (Priority Queue)")
+    public ResponseEntity<List<AdminLoanApplicationDTO>> getEmergencyPendingLoans(
+            @RequestHeader("Authorization") String token) {
+        log.info("Fetching emergency pending applications");
+        List<AdminLoanApplicationDTO> applications = adminService.getEmergencyPendingApplications(token);
+        return ResponseEntity.ok(applications);
+    }
+
+    @PutMapping("/loans/{applicationId}/expedite")
+    @Operation(summary = "Expedite emergency loan review")
+    public ResponseEntity<Void> expediteEmergencyLoan(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long applicationId,
+            @RequestBody EmergencyLoanDecisionDTO decision) {
+        log.info("Expediting emergency loan application {}", applicationId);
+        adminService.expediteEmergencyLoan(token, applicationId, decision);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{loanNumber}/schedule")
+    @Operation(summary = "Get loan payment schedule")
+    public ResponseEntity<LoanScheduleDTO> getPaymentSchedule(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String loanNumber) {
+        log.info("Fetching payment schedule for loan: {}", loanNumber);
+        LoanScheduleDTO schedule = loanService.getPaymentSchedule(token, loanNumber);
+        return ResponseEntity.ok(schedule);
     }
 
     @GetMapping("/reports/transactions")

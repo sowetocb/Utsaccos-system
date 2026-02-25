@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Pattern;
 
 @Data
 public class RegisterInitiateDTO {
-
     @NotBlank(message = "ID Number is required")
     @Pattern(regexp = "\\d+", message = "ID Number must contain only digits")
     private String idNumber;

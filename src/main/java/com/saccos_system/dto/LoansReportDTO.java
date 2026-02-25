@@ -13,4 +13,5 @@ public class LoansReportDTO {
     private BigDecimal totalRepaid;
     private BigDecimal outstandingBalance;
     private List<LoanSummaryDTO> activeLoanDetails;
+    private Integer emergencyLoans;
 }

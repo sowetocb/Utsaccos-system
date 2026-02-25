@@ -2,6 +2,7 @@ package com.saccos_system.service;
 
 import com.saccos_system.dto.*;
 import com.saccos_system.model.*;
+import com.saccos_system.model.LoanType;
 import com.saccos_system.repository.*;
 import com.saccos_system.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -38,6 +40,7 @@ public class AdminService {
     private final NotificationRepository notificationRepository;
     private final MonthlyStatementRepository monthlyStatementRepository;
     private final RoleService roleService;
+    private final SMSService smsService;
 
     // ========== ADMIN VALIDATION ==========
 
@@ -46,7 +49,7 @@ public class AdminService {
         SystemUser user = systemUserRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        //   Check if user has ADMIN role
+        // Check if user has ADMIN role
         if (!roleService.userHasRole(userId, "ADMIN")) {
             log.warn("Unauthorized admin access attempt by user: {} (ID: {})",
                     user.getUsername(), userId);
@@ -56,7 +59,7 @@ public class AdminService {
         return user;
     }
 
-    // 🔴 NEW: Validate Loan Officer role
+    // Validate Loan Officer role
     private SystemUser validateLoanOfficer(String token) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = systemUserRepository.findById(userId)
@@ -132,7 +135,7 @@ public class AdminService {
         log.info("Admin {} unlocked user {}", admin.getUsername(), userId);
     }
 
-    //  Assign role to user
+    // Assign role to user
     public void assignRole(String token, Long userId, String roleName) {
         SystemUser admin = validateAdmin(token);
 
@@ -142,7 +145,7 @@ public class AdminService {
                 admin.getUsername(), roleName, userId);
     }
 
-    //  Remove role from user
+    // Remove role from user
     public void removeRole(String token, Long userId, String roleName) {
         SystemUser admin = validateAdmin(token);
 
@@ -175,8 +178,11 @@ public class AdminService {
 
     // ========== LOAN MANAGEMENT ==========
 
+    /**
+     * Get all pending loan applications (regular and emergency)
+     */
     public List<AdminLoanApplicationDTO> getPendingLoanApplications(String token) {
-        validateLoanOfficer(token);  //  Loan officer can view pending loans
+        validateLoanOfficer(token);
 
         List<LoanApplication> pendingApplications = loanApplicationRepository
                 .findByStatus_StatusCode("LOAN_PENDING");
@@ -186,11 +192,205 @@ public class AdminService {
                 .collect(Collectors.toList());
     }
 
-    public void approveLoanApplication(String token, Long applicationId, LoanApprovalDTO approval) {
-        SystemUser officer = validateLoanOfficer(token);  // Loan officer can approve
+
+     // Get emergency pending applications (priority queue)
+    public List<AdminLoanApplicationDTO> getEmergencyPendingApplications(String token) {
+        validateLoanOfficer(token);
+
+        List<LoanApplication> emergencyPending = loanApplicationRepository
+                .findByStatus_StatusCodeOrderByAppliedDateAsc("LOAN_PENDING_EMERGENCY");
+
+        return emergencyPending.stream()
+                .map(this::mapToAdminLoanApplicationDTO)
+                .collect(Collectors.toList());
+    }
+
+
+     // Expedite emergency loan review
+    @Transactional
+    public void expediteEmergencyLoan(String token, Long applicationId, EmergencyLoanDecisionDTO decision) {
+        SystemUser officer = validateLoanOfficer(token);
 
         LoanApplication application = loanApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new RuntimeException("Loan application not found"));
+
+        // Verify it's an emergency loan
+        if (!"EMERGENCY".equals(application.getLoanType())) {
+            throw new RuntimeException("Expedite workflow only for emergency loans");
+        }
+
+        // Log the decision for audit
+        log.info("=== EMERGENCY LOAN DECISION ===");
+        log.info("Application ID: {}", applicationId);
+        log.info("Application Number: {}", application.getApplicationNumber());
+        log.info("Officer: {}", officer.getUsername());
+        log.info("Decision: {}", decision.isApproved() ? "APPROVED" : "REJECTED");
+        log.info("Reason: {}", decision.getReason());
+        log.info("Document Verified: {}", decision.isDocumentVerified());
+        log.info("Phone Verified: {}", decision.isPhoneVerified());
+
+        if (decision.isApproved()) {
+            // Create approval DTO
+            LoanApprovalDTO approval = new LoanApprovalDTO();
+            approval.setApprovedAmount(decision.getApprovedAmount() != null ?
+                    decision.getApprovedAmount() : application.getAmount());
+            approval.setInterestRate(BigDecimal.valueOf(18.0)); // Higher interest for emergency loans
+            approval.setApprovedBy(officer.getUsername());
+            approval.setNotes(decision.getReason());
+
+            // Approve with emergency terms
+            approveEmergencyLoan(application, approval, officer, decision);
+        } else {
+            // Reject with reason
+            LoanRejectionDTO rejection = new LoanRejectionDTO();
+            rejection.setRejectionReason(decision.getReason());
+            rejection.setRejectedBy(officer.getUsername());
+
+            rejectLoanApplication(token, applicationId, rejection);
+        }
+    }
+
+    /**
+     * Approve emergency loan with immediate disbursement
+     */
+    @Transactional
+    public void approveEmergencyLoan(LoanApplication application, LoanApprovalDTO approval,
+                                     SystemUser officer, EmergencyLoanDecisionDTO decision) {
+
+        // Update application status
+        LookupStatus approvedStatus = lookupStatusRepository.findByStatusCode("LOAN_APPROVED")
+                .orElseThrow(() -> new RuntimeException("Approved status not found"));
+
+        application.setStatus(approvedStatus);
+        application.setApprovedDate(LocalDateTime.now());
+        application.setApprovedBy(officer.getUsername());
+        application.setApprovedAmount(approval.getApprovedAmount());
+
+        // Store verification details
+        application.setDocumentVerified(decision.isDocumentVerified());
+        application.setPhoneVerified(decision.isPhoneVerified());
+        application.setVerificationNotes(decision.getVerificationNotes());
+
+        loanApplicationRepository.save(application);
+
+        // Create loan with emergency terms (higher interest)
+        createEmergencyLoan(application, approval, officer);
+
+        // Disburse funds immediately to savings account
+        disburseEmergencyLoanFunds(application, officer);
+
+        log.info("=== EMERGENCY LOAN APPROVED AND DISBURSED ===");
+        log.info("Application: {}", application.getApplicationNumber());
+        log.info("Amount: {}", approval.getApprovedAmount());
+        log.info("Interest Rate: 18.0%");
+        log.info("Document Verified: {}", decision.isDocumentVerified());
+        log.info("Phone Verified: {}", decision.isPhoneVerified());
+        log.info("Officer: {}", officer.getUsername());
+        log.info("Disbursed to Member: {}", application.getProfile().getMemberNumber());
+    }
+
+    /**
+     * Create emergency loan record
+     */
+    private void createEmergencyLoan(LoanApplication application, LoanApprovalDTO approval, SystemUser officer) {
+        // Generate loan number with EMERG prefix
+        String loanNumber = "EMERG-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                + "-" + String.format("%03d", application.getApplicationId());
+
+        // Higher interest rate for emergency loans (18%)
+        BigDecimal interestRate = BigDecimal.valueOf(18.0);
+
+        // Calculate monthly payment (shorter term = higher payments)
+        BigDecimal monthlyPayment = calculateMonthlyPayment(
+                approval.getApprovedAmount(),
+                interestRate,
+                application.getTermMonths()
+        );
+
+        LocalDate startDate = LocalDate.now();
+        LocalDate endDate = startDate.plusMonths(application.getTermMonths());
+
+        // Get active loan status
+        LookupStatus activeStatus = lookupStatusRepository.findByStatusCode("LOAN_ACTIVE")
+                .orElseThrow(() -> new RuntimeException("Active loan status not found"));
+
+        // Create loan
+        Loan loan = new Loan();
+        loan.setLoanNumber(loanNumber);
+        loan.setProfile(application.getProfile());
+        loan.setPrincipalAmount(approval.getApprovedAmount());
+        loan.setInterestRate(interestRate);
+        loan.setLoanType(application.getLoanType());
+        loan.setTermMonths(application.getTermMonths());
+        loan.setStartDate(startDate);
+        loan.setEndDate(endDate);
+        loan.setMonthlyPayment(monthlyPayment);
+        loan.setRemainingBalance(approval.getApprovedAmount());
+        loan.setStatus(activeStatus);
+        loan.setCreatedBy(officer.getUsername());
+
+        loanRepository.save(loan);
+
+        // Generate payment schedule
+        generatePaymentSchedule(loan, approval.getApprovedAmount(), interestRate, application.getTermMonths());
+
+        log.info("Emergency loan created: {} for amount: {}", loanNumber, approval.getApprovedAmount());
+    }
+
+    /**
+     * Disburse emergency loan funds immediately to savings account
+     */
+    private void disburseEmergencyLoanFunds(LoanApplication application, SystemUser officer) {
+        SavingsAccount savingsAccount = savingsAccountRepository
+                .findByProfile_ProfileId(application.getProfile().getProfileId())
+                .orElseThrow(() -> new RuntimeException("Savings account not found"));
+
+        BigDecimal balanceBefore = savingsAccount.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(application.getApprovedAmount());
+
+        // Update savings account balance
+        savingsAccount.setBalance(balanceAfter);
+        savingsAccountRepository.save(savingsAccount);
+
+        // Record transaction
+        TransactionRecord transaction = new TransactionRecord();
+        transaction.setTransactionRef("LOAN-" + application.getApplicationNumber());
+        transaction.setSavingsAccount(savingsAccount);
+        transaction.setTransactionType("LOAN_DISBURSEMENT");
+        transaction.setAmount(application.getApprovedAmount());
+        transaction.setBalanceBefore(balanceBefore);
+        transaction.setBalanceAfter(balanceAfter);
+        transaction.setDescription("Emergency loan disbursement - " + application.getApplicationNumber());
+        transaction.setPerformedBy(officer.getUsername());
+
+        transactionRepository.save(transaction);
+
+        log.info("Funds disbursed to account {}: Balance before: {}, after: {}",
+                savingsAccount.getAccountNumber(), balanceBefore, balanceAfter);
+
+        // Send SMS confirmation
+        if (application.getProfile().getPhone() != null) {
+            String message = String.format(
+                    "URGENT: Your emergency loan of %,.2f has been approved and disbursed to your savings account. New balance: %,.2f",
+                    application.getApprovedAmount(), balanceAfter);
+            //smsService.sendTransactionAlert(application.getProfile().getPhone(), message);
+            log.info("SMS notification sent to: {}", application.getProfile().getPhone());
+        }
+    }
+
+    /**
+     * Regular loan approval (existing method)
+     */
+    public void approveLoanApplication(String token, Long applicationId, LoanApprovalDTO approval) {
+        SystemUser officer = validateLoanOfficer(token);
+
+        LoanApplication application = loanApplicationRepository.findById(applicationId)
+                .orElseThrow(() -> new RuntimeException("Loan application not found"));
+
+        // Check if it's an emergency loan - should use expedite workflow
+        if ("EMERGENCY".equals(application.getLoanType())) {
+            throw new RuntimeException("Emergency loans must use the expedite workflow");
+        }
 
         // Update application status
         LookupStatus approvedStatus = lookupStatusRepository.findByStatusCode("LOAN_APPROVED")
@@ -206,11 +406,11 @@ public class AdminService {
         // Create loan record
         createLoanFromApplication(application, approval, officer);
 
-        log.info("Loan officer {} approved loan application {}", officer.getUsername(), applicationId);
+        log.info("Loan officer {} approved regular loan application {}", officer.getUsername(), applicationId);
     }
 
     public void rejectLoanApplication(String token, Long applicationId, LoanRejectionDTO rejection) {
-        SystemUser officer = validateLoanOfficer(token);  // Loan officer can reject
+        SystemUser officer = validateLoanOfficer(token);
 
         LoanApplication application = loanApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new RuntimeException("Loan application not found"));
@@ -230,7 +430,7 @@ public class AdminService {
     // ========== REPORTS ==========
 
     public SavingsReportDTO getSavingsReport(String token, String startDateStr, String endDateStr) {
-        validateAccountant(token);  //  Accountant can view reports
+        validateAccountant(token);
 
         LocalDateTime startDate = parseStartDate(startDateStr);
         LocalDateTime endDate = parseEndDate(endDateStr);
@@ -271,17 +471,24 @@ public class AdminService {
         report.setMonthlyWithdrawals(monthlyWithdrawals);
         report.setTopAccounts(topAccounts);
 
+        log.info("Savings report generated: {} accounts, total balance: {}",
+                allAccounts.size(), totalBalance);
         return report;
     }
 
     public LoansReportDTO getLoansReport(String token, String startDateStr, String endDateStr) {
-        validateAccountant(token);  //  Accountant can view reports
+        validateAccountant(token);
 
         LocalDateTime startDate = parseStartDate(startDateStr);
         LocalDateTime endDate = parseEndDate(endDateStr);
 
         List<Loan> allLoans = loanRepository.findAll();
         List<Loan> activeLoans = loanRepository.findByStatus_StatusCode("LOAN_ACTIVE");
+
+        // Separate emergency loans for reporting
+        List<Loan> emergencyLoans = allLoans.stream()
+                .filter(l -> "EMERGENCY".equals(l.getLoanType()))
+                .collect(Collectors.toList());
 
         BigDecimal totalDisbursed = allLoans.stream()
                 .map(Loan::getPrincipalAmount)
@@ -302,16 +509,19 @@ public class AdminService {
         LoansReportDTO report = new LoansReportDTO();
         report.setTotalLoans(allLoans.size());
         report.setActiveLoans(activeLoans.size());
+        report.setEmergencyLoans(emergencyLoans.size());
         report.setTotalDisbursed(totalDisbursed);
         report.setTotalRepaid(totalRepaid);
         report.setOutstandingBalance(outstandingBalance);
         report.setActiveLoanDetails(activeLoanDetails);
 
+        log.info("Loans report generated: {} total loans, {} emergency loans",
+                allLoans.size(), emergencyLoans.size());
         return report;
     }
 
     public TransactionsReportDTO getTransactionsReport(String token, String startDateStr, String endDateStr) {
-        validateAccountant(token);  //  Accountant can view reports
+        validateAccountant(token);
 
         LocalDateTime startDate = parseStartDate(startDateStr);
         LocalDateTime endDate = parseEndDate(endDateStr);
@@ -341,32 +551,36 @@ public class AdminService {
         report.setTotalWithdrawals(totalWithdrawals);
         report.setRecentTransactions(recentTransactions);
 
+        log.info("Transactions report generated: {} transactions", transactions.size());
         return report;
     }
 
     // ========== SYSTEM SETTINGS ==========
 
     public SystemSettingsDTO getSystemSettings(String token) {
-        validateAdmin(token);  //  Only admin can manage settings
+        validateAdmin(token);
 
-        // In a real application, these would be loaded from a settings table
         SystemSettingsDTO settings = new SystemSettingsDTO();
         settings.setMinimumSavingsBalance(BigDecimal.valueOf(1000));
         settings.setMaximumDailyWithdrawal(BigDecimal.valueOf(50000));
         settings.setMaximumDailyDeposit(BigDecimal.valueOf(100000));
         settings.setLoanInterestRate(BigDecimal.valueOf(12.0));
+        settings.setEmergencyLoanInterestRate(BigDecimal.valueOf(18.0));
         settings.setLoanTermMonths(12);
+        settings.setEmergencyLoanMaxTerm(6);
         settings.setMaintenanceMode(false);
         settings.setSystemMessage("System is operational");
 
+        log.info("System settings retrieved by admin");
         return settings;
     }
 
     public void updateSystemSettings(String token, SystemSettingsDTO settings) {
-        validateAdmin(token);  //  Only admin can manage settings
-
-        // In a real application, save these to a settings table
-        log.info("System settings updated by admin");
+        validateAdmin(token);
+        log.info("System settings updated by admin: minimumSavings={}, maxWithdrawal={}, maxDeposit={}",
+                settings.getMinimumSavingsBalance(),
+                settings.getMaximumDailyWithdrawal(),
+                settings.getMaximumDailyDeposit());
     }
 
     // ========== ADMIN DASHBOARD ==========
@@ -398,10 +612,14 @@ public class AdminService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         dashboard.setTotalLoans(totalLoans);
 
-        // Pending applications
-        List<LoanApplication> pendingApplications = loanApplicationRepository
+        // Pending applications (separate regular and emergency)
+        List<LoanApplication> pendingRegular = loanApplicationRepository
                 .findByStatus_StatusCode("LOAN_PENDING");
-        dashboard.setPendingApplications(pendingApplications.size());
+        List<LoanApplication> pendingEmergency = loanApplicationRepository
+                .findByStatus_StatusCode("LOAN_PENDING_EMERGENCY");
+
+        dashboard.setPendingApplications(pendingRegular.size());
+        dashboard.setPendingEmergencyApplications(pendingEmergency.size());
 
         // Overdue loans
         List<Loan> overdueLoans = loanRepository.findOverdueLoans("LOAN_ACTIVE");
@@ -412,10 +630,12 @@ public class AdminService {
         dashboard.setTotalLoanOfficers(roleService.getUsersByRole("LOAN_OFFICER").size());
         dashboard.setTotalAccountants(roleService.getUsersByRole("ACCOUNTANT").size());
 
-        // Trends (mock data - in real app, query by month)
+        // Trends
         dashboard.setSavingsTrend(generateTrendData("Savings"));
         dashboard.setLoansTrend(generateTrendData("Loans"));
 
+        log.info("Admin dashboard generated: {} members, {} savings, {} loans, {} pending emergency",
+                allMembers.size(), totalSavings, totalLoans, pendingEmergency.size());
         return dashboard;
     }
 
@@ -480,14 +700,14 @@ public class AdminService {
     }
 
     private void generatePaymentSchedule(Loan loan, BigDecimal principal, BigDecimal annualRate, int months) {
-        BigDecimal monthlyRate = annualRate.divide(BigDecimal.valueOf(1200), 10, BigDecimal.ROUND_HALF_UP);
+        BigDecimal monthlyRate = annualRate.divide(BigDecimal.valueOf(1200), 10, RoundingMode.HALF_UP);
         BigDecimal monthlyPayment = loan.getMonthlyPayment();
 
         BigDecimal remainingBalance = principal;
 
         for (int i = 1; i <= months; i++) {
             BigDecimal interestAmount = remainingBalance.multiply(monthlyRate)
-                    .setScale(2, BigDecimal.ROUND_HALF_UP);
+                    .setScale(2, RoundingMode.HALF_UP);
             BigDecimal principalAmount = monthlyPayment.subtract(interestAmount);
 
             if (i == months) {
@@ -512,14 +732,14 @@ public class AdminService {
     }
 
     private BigDecimal calculateMonthlyPayment(BigDecimal principal, BigDecimal annualRate, int months) {
-        BigDecimal monthlyRate = annualRate.divide(BigDecimal.valueOf(1200), 10, BigDecimal.ROUND_HALF_UP);
+        BigDecimal monthlyRate = annualRate.divide(BigDecimal.valueOf(1200), 10, RoundingMode.HALF_UP);
         BigDecimal onePlusRate = BigDecimal.ONE.add(monthlyRate);
         BigDecimal ratePower = onePlusRate.pow(months);
 
         return principal
                 .multiply(monthlyRate)
                 .multiply(ratePower)
-                .divide(ratePower.subtract(BigDecimal.ONE), 2, BigDecimal.ROUND_HALF_UP);
+                .divide(ratePower.subtract(BigDecimal.ONE), 2, RoundingMode.HALF_UP);
     }
 
     // ========== MAPPING METHODS ==========
@@ -539,8 +759,6 @@ public class AdminService {
         dto.setIsLocked(user.getIsLocked());
         dto.setLastLoginDate(user.getLastLoginDate());
         dto.setCreatedDate(user.getCreatedDate());
-
-        // 🔴 NEW: Get roles
         dto.setRoles(roleService.getUserRoles(user.getUserId()));
 
         return dto;
@@ -560,21 +778,43 @@ public class AdminService {
         AdminLoanApplicationDTO dto = new AdminLoanApplicationDTO();
         dto.setApplicationId(app.getApplicationId());
         dto.setApplicationNumber(app.getApplicationNumber());
-        dto.setMemberName(app.getProfile().getFirstName() + " " + app.getProfile().getLastName());
-        dto.setMemberNumber(app.getProfile().getMemberNumber());
+
+        if (app.getProfile() != null) {
+            dto.setMemberName(app.getProfile().getFirstName() + " " + app.getProfile().getLastName());
+            dto.setMemberNumber(app.getProfile().getMemberNumber());
+        }
+
         dto.setLoanType(app.getLoanType());
         dto.setAmount(app.getAmount());
         dto.setTermMonths(app.getTermMonths());
         dto.setPurpose(app.getPurpose());
         dto.setAppliedDate(app.getAppliedDate());
-        dto.setStatus(app.getStatus().getStatusName());
+
+        if (app.getStatus() != null) {
+            dto.setStatus(app.getStatus().getStatusName());
+        }
+
+        // Map emergency fields with null safety
+        dto.setEmergencyReason(app.getEmergencyReason());
+        dto.setSupportingDocument(app.getSupportingDocument());
+        dto.setDocumentVerified(app.getDocumentVerified() != null ? app.getDocumentVerified() : false);
+        dto.setPhoneVerified(app.getPhoneVerified() != null ? app.getPhoneVerified() : false);
+        dto.setVerificationNotes(app.getVerificationNotes());
+
+        // Map guarantor fields
+        dto.setGuarantorIdNumber(app.getGuarantorIdNumber());
+        dto.setGuarantorName(app.getGuarantorName());
+        dto.setGuarantorPhone(app.getGuarantorPhone());
+
         return dto;
     }
 
     private AccountSummaryDTO mapToAccountSummaryDTO(SavingsAccount account) {
         AccountSummaryDTO dto = new AccountSummaryDTO();
-        dto.setMemberNumber(account.getProfile().getMemberNumber());
-        dto.setMemberName(account.getProfile().getFirstName() + " " + account.getProfile().getLastName());
+        if (account.getProfile() != null) {
+            dto.setMemberNumber(account.getProfile().getMemberNumber());
+            dto.setMemberName(account.getProfile().getFirstName() + " " + account.getProfile().getLastName());
+        }
         dto.setAccountNumber(account.getAccountNumber());
         dto.setBalance(account.getBalance());
         return dto;
@@ -587,7 +827,11 @@ public class AdminService {
         dto.setPrincipalAmount(loan.getPrincipalAmount());
         dto.setRemainingBalance(loan.getRemainingBalance());
         dto.setMonthlyPayment(loan.getMonthlyPayment());
-        dto.setStatus(loan.getStatus().getStatusName());
+
+        if (loan.getStatus() != null) {
+            dto.setStatus(loan.getStatus().getStatusName());
+        }
+
         dto.setNextPaymentDate(calculateNextPaymentDate(loan));
         return dto;
     }

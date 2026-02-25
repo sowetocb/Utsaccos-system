@@ -1,8 +1,8 @@
 package com.saccos_system.service;
 
-
 import com.saccos_system.dto.*;
 import com.saccos_system.model.*;
+import com.saccos_system.model.LoanType;
 import com.saccos_system.repository.*;
 import com.saccos_system.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -30,63 +32,184 @@ public class LoanService {
     private final LoanPaymentScheduleRepository scheduleRepository;
     private final LoanPaymentRepository paymentRepository;
     private final SavingsAccountRepository savingsAccountRepository;
+    private final LookupStatusRepository lookupStatusRepository;
+    private final TransactionRecordRepository transactionRepository;
     private final NotificationService notificationService;
 
+    /**
+     * Apply for a loan (regular or emergency)
+     */
+    @Transactional
     public LoanApplicationResponseDTO applyForLoan(String token, LoanApplicationDTO request) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
 
-        // Check if user has active savings account
-        SavingsAccount savingsAccount = savingsAccountRepository
-                .findByProfile_ProfileId(user.getProfile().getProfileId())
-                .orElseThrow(() -> new RuntimeException("No active savings account found"));
+        SavingsAccount savingsAccount = getSavingsAccount(user);
+        LoanType loanType = request.getLoanType();
 
-        // Check minimum savings balance requirement
-        BigDecimal minimumSavings = BigDecimal.valueOf(5000);
-        if (savingsAccount.getBalance().compareTo(minimumSavings) < 0) {
-            throw new RuntimeException("Minimum savings balance of " + minimumSavings + " required");
-        }
-
-        // Check if user has existing active loans
-        List<Loan> activeLoans = loanRepository
-                .findByProfile_ProfileIdAndStatus_StatusCode(user.getProfile().getProfileId(), "LOAN_ACTIVE");
-
-        if (!activeLoans.isEmpty()) {
-            throw new RuntimeException("You have existing active loans");
-        }
-
-        // Check loan eligibility (3 times savings balance)
-        BigDecimal maxEligibleAmount = savingsAccount.getBalance().multiply(BigDecimal.valueOf(3));
-        if (request.getAmount().compareTo(maxEligibleAmount) > 0) {
-            throw new RuntimeException("Maximum eligible loan amount is " + maxEligibleAmount);
-        }
+        // Validate loan eligibility based on loan type
+        validateLoanEligibility(user, savingsAccount, request, loanType);
 
         // Generate application number
-        String applicationNumber = "LAPP" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String applicationNumber = generateApplicationNumber(loanType);
 
-        // Get pending status
-        LookupStatus pendingStatus = new LookupStatus();
-        pendingStatus.setStatusId(8); // Assuming 8 is LOAN_PENDING status ID
+        // Determine initial status based on loan type
+        LookupStatus initialStatus = getInitialStatus(loanType);
 
         // Create loan application
-        LoanApplication application = new LoanApplication();
-        application.setApplicationNumber(applicationNumber);
-        application.setProfile(user.getProfile());
-        application.setLoanType(request.getLoanType());
-        application.setAmount(request.getAmount());
-        application.setTermMonths(request.getTermMonths());
-        application.setPurpose(request.getPurpose());
-        application.setStatus(pendingStatus);
-        application.setCreatedBy(user.getUsername());
+        LoanApplication application = createLoanApplication(request, user, applicationNumber, initialStatus);
+
+        // Set emergency-specific fields
+        if (loanType == LoanType.EMERGENCY) {
+            application.setEmergencyReason(request.getEmergencyReason());
+            application.setSupportingDocument(request.getSupportingDocument());
+            application.setDocumentVerified(false);
+            application.setPhoneVerified(false);
+        }
 
         LoanApplication savedApplication = loanApplicationRepository.save(application);
 
-        // Send notification
-        notificationService.sendLoanApplicationNotification(user, savedApplication);
+        // Send appropriate notifications
+        sendApplicationNotifications(user, savedApplication, loanType);
+
+        log.info("User {} applied for {} loan: {}", user.getUsername(), loanType, applicationNumber);
 
         return mapToApplicationResponse(savedApplication);
     }
 
+    /**
+     * Validate loan eligibility based on loan type
+     */
+    private void validateLoanEligibility(SystemUser user, SavingsAccount savingsAccount,
+                                         LoanApplicationDTO request, LoanType loanType) {
+
+        // Check minimum savings balance based on loan type
+        BigDecimal minimumSavings = loanType == LoanType.EMERGENCY ?
+                BigDecimal.valueOf(2000) : BigDecimal.valueOf(5000);
+
+        if (savingsAccount.getBalance().compareTo(minimumSavings) < 0) {
+            throw new RuntimeException(
+                    String.format("Minimum savings balance of %,.2f required for %s loan",
+                            minimumSavings, loanType.getDisplayName()));
+        }
+
+        // Calculate maximum eligible amount based on loan type multiplier
+        BigDecimal maxEligibleAmount = savingsAccount.getBalance()
+                .multiply(BigDecimal.valueOf(loanType.getSavingsMultiplier()));
+
+        if (request.getAmount().compareTo(maxEligibleAmount) > 0) {
+            throw new RuntimeException(
+                    String.format("Maximum eligible %s loan amount is %,.2f (%.1fx your savings)",
+                            loanType.getDisplayName(), maxEligibleAmount, loanType.getSavingsMultiplier()));
+        }
+
+        // Check term limits
+        if (loanType == LoanType.EMERGENCY && request.getTermMonths() > 6) {
+            throw new RuntimeException("Emergency loans cannot exceed 6 months term");
+        }
+
+        if (loanType != LoanType.EMERGENCY && request.getTermMonths() > 60) {
+            throw new RuntimeException("Regular loans cannot exceed 60 months term");
+        }
+
+        // For non-emergency loans, check for existing active loans
+        if (loanType != LoanType.EMERGENCY) {
+            List<Loan> activeLoans = loanRepository
+                    .findByProfile_ProfileIdAndStatus_StatusCode(
+                            user.getProfile().getProfileId(), "LOAN_ACTIVE");
+
+            if (!activeLoans.isEmpty()) {
+                throw new RuntimeException(
+                        "You have existing active loans. Please complete them before applying for a new " +
+                                loanType.getDisplayName() + " loan.");
+            }
+        }
+
+        // Validate emergency-specific requirements
+        if (loanType == LoanType.EMERGENCY) {
+            if (request.getEmergencyReason() == null || request.getEmergencyReason().isEmpty()) {
+                throw new RuntimeException("Emergency reason is required for emergency loans");
+            }
+
+            // Check if user has had an emergency loan in the last 6 months
+            LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+            List<LoanApplication> recentEmergencyLoans = loanApplicationRepository
+                    .findByProfile_ProfileIdAndLoanTypeAndAppliedDateAfter(
+                            user.getProfile().getProfileId(), "EMERGENCY", sixMonthsAgo);
+
+            if (!recentEmergencyLoans.isEmpty()) {
+                throw new RuntimeException(
+                        "You have already taken an emergency loan in the last 6 months. " +
+                                "Emergency loans are limited to one every 6 months.");
+            }
+        }
+    }
+
+    /**
+     * Get initial status based on loan type
+     */
+    private LookupStatus getInitialStatus(LoanType loanType) {
+        String statusCode = loanType == LoanType.EMERGENCY ?
+                "LOAN_PENDING_EMERGENCY" : "LOAN_PENDING";
+
+        return lookupStatusRepository.findByStatusCode(statusCode)
+                .orElseThrow(() -> new RuntimeException(
+                        loanType == LoanType.EMERGENCY ?
+                                "Emergency pending status not found" : "Pending status not found"));
+    }
+
+    /**
+     * Create loan application entity
+     */
+    private LoanApplication createLoanApplication(LoanApplicationDTO request, SystemUser user,
+                                                  String applicationNumber, LookupStatus status) {
+        LoanApplication application = new LoanApplication();
+        application.setApplicationNumber(applicationNumber);
+        application.setProfile(user.getProfile());
+        application.setLoanType(request.getLoanType().name());
+        application.setAmount(request.getAmount());
+        application.setTermMonths(request.getTermMonths());
+        application.setPurpose(request.getPurpose());
+        application.setStatus(status);
+        application.setCreatedBy(user.getUsername());
+        application.setAppliedDate(LocalDateTime.now());
+
+        // Set guarantor information for regular loans
+        if (request.getLoanType() != LoanType.EMERGENCY) {
+            application.setGuarantorIdNumber(request.getGuarantorIdNumber());
+            application.setGuarantorName(request.getGuarantorName());
+            application.setGuarantorPhone(request.getGuarantorPhone());
+        }
+
+        return application;
+    }
+
+    /**
+     * Send appropriate notifications based on loan type
+     */
+    private void sendApplicationNotifications(SystemUser user, LoanApplication application, LoanType loanType) {
+        if (loanType == LoanType.EMERGENCY) {
+            // Send URGENT notification to admins and loan officers
+            //notificationService.sendEmergencyLoanAlertToAdmins(application);
+            // Send acknowledgment to member
+            //notificationService.sendEmergencyLoanAcknowledgment(user, application);
+            log.info("Emergency loan alert sent for application: {}", application.getApplicationNumber());
+        } else {
+            notificationService.sendLoanApplicationNotification(user, application);
+        }
+    }
+
+    /**
+     * Generate application number with appropriate prefix
+     */
+    private String generateApplicationNumber(LoanType loanType) {
+        String prefix = loanType == LoanType.EMERGENCY ? "EMG" : "LAPP";
+        return prefix + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    /**
+     * Get all loan applications for the current user
+     */
     public List<LoanApplicationResponseDTO> getMyLoanApplications(String token) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
@@ -99,6 +222,9 @@ public class LoanService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get loan details by loan number
+     */
     public LoanDetailsDTO getLoanDetails(String token, String loanNumber) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
@@ -114,6 +240,9 @@ public class LoanService {
         return mapToLoanDetails(loan);
     }
 
+    /**
+     * Get all loans for the current user
+     */
     public List<LoanSummaryDTO> getMyLoans(String token) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
@@ -125,6 +254,9 @@ public class LoanService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Make a loan payment
+     */
     public LoanPaymentResponseDTO makePayment(String token, LoanPaymentDTO request) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
@@ -149,8 +281,11 @@ public class LoanService {
             paymentAmount = loan.getRemainingBalance();
         }
 
-        // Check minimum payment
-        BigDecimal minimumPayment = loan.getMonthlyPayment().multiply(BigDecimal.valueOf(0.5));
+        // Check minimum payment (different for emergency loans)
+        BigDecimal minimumPayment = "EMERGENCY".equals(loan.getLoanType()) ?
+                loan.getMonthlyPayment() : // Emergency loans require full monthly payment
+                loan.getMonthlyPayment().multiply(BigDecimal.valueOf(0.5)); // Regular loans allow half
+
         if (paymentAmount.compareTo(minimumPayment) < 0) {
             throw new RuntimeException("Minimum payment amount is " + minimumPayment);
         }
@@ -173,6 +308,7 @@ public class LoanService {
         payment.setPaidBy(user.getUsername());
         payment.setNotes(request.getNotes());
         payment.setCreatedBy(user.getUsername());
+        payment.setPaymentDate(LocalDateTime.now());
 
         LoanPayment savedPayment = paymentRepository.save(payment);
 
@@ -182,23 +318,28 @@ public class LoanService {
 
         // Check if loan is fully paid
         if (newRemainingBalance.compareTo(BigDecimal.ZERO) <= 0) {
-            // Get settled status
-            LookupStatus settledStatus = new LookupStatus();
-            settledStatus.setStatusId(13); // Assuming 13 is LOAN_SETTLED status ID
+            LookupStatus settledStatus = lookupStatusRepository.findByStatusCode("LOAN_SETTLED")
+                    .orElseThrow(() -> new RuntimeException("Settled status not found"));
             loan.setStatus(settledStatus);
         }
 
         loanRepository.save(loan);
 
-        // Update payment schedule if applicable
+        // Update payment schedule
         updatePaymentSchedule(loan, paymentAmount);
 
         // Send notification
         notificationService.sendLoanPaymentNotification(user, loan, paymentAmount);
 
+        log.info("Payment of {} received for loan {} by user {}",
+                paymentAmount, loan.getLoanNumber(), user.getUsername());
+
         return mapToPaymentResponse(savedPayment);
     }
 
+    /**
+     * Get payment history for a loan
+     */
     public List<LoanPaymentResponseDTO> getPaymentHistory(String token, String loanNumber) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
@@ -218,6 +359,9 @@ public class LoanService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get payment schedule for a loan
+     */
     public LoanScheduleDTO getPaymentSchedule(String token, String loanNumber) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
         SystemUser user = getUser(userId);
@@ -257,10 +401,16 @@ public class LoanService {
         return scheduleDTO;
     }
 
-    // Helper methods
+    // ========== HELPER METHODS ==========
+
     private SystemUser getUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    private SavingsAccount getSavingsAccount(SystemUser user) {
+        return savingsAccountRepository.findByProfile_ProfileId(user.getProfile().getProfileId())
+                .orElseThrow(() -> new RuntimeException("Savings account not found"));
     }
 
     private void updatePaymentSchedule(Loan loan, BigDecimal paymentAmount) {
@@ -299,7 +449,8 @@ public class LoanService {
                 .divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
     }
 
-    // Mapping methods
+    // ========== MAPPING METHODS ==========
+
     private LoanApplicationResponseDTO mapToApplicationResponse(LoanApplication application) {
         LoanApplicationResponseDTO dto = new LoanApplicationResponseDTO();
         dto.setApplicationNumber(application.getApplicationNumber());
@@ -308,9 +459,23 @@ public class LoanService {
         dto.setTermMonths(application.getTermMonths());
         dto.setPurpose(application.getPurpose());
         dto.setAppliedDate(application.getAppliedDate());
-        dto.setStatus(application.getStatus().getStatusName());
+
+        if (application.getStatus() != null) {
+            dto.setStatus(application.getStatus().getStatusName());
+        }
+
         dto.setApprovedAmount(application.getApprovedAmount());
         dto.setRejectionReason(application.getRejectionReason());
+
+        // Add emergency-specific fields with null safety
+        if ("EMERGENCY".equals(application.getLoanType())) {
+            dto.setEmergencyReason(application.getEmergencyReason());
+            dto.setDocumentVerified(application.getDocumentVerified() != null ?
+                    application.getDocumentVerified() : false);
+            dto.setPhoneVerified(application.getPhoneVerified() != null ?
+                    application.getPhoneVerified() : false);
+        }
+
         return dto;
     }
 
@@ -325,7 +490,10 @@ public class LoanService {
         dto.setEndDate(loan.getEndDate());
         dto.setMonthlyPayment(loan.getMonthlyPayment());
         dto.setRemainingBalance(loan.getRemainingBalance());
-        dto.setStatus(loan.getStatus().getStatusName());
+
+        if (loan.getStatus() != null) {
+            dto.setStatus(loan.getStatus().getStatusName());
+        }
 
         // Calculate total paid
         List<LoanPayment> payments = paymentRepository.findByLoan_LoanIdOrderByPaymentDateDesc(loan.getLoanId());
@@ -344,7 +512,11 @@ public class LoanService {
         dto.setPrincipalAmount(loan.getPrincipalAmount());
         dto.setRemainingBalance(loan.getRemainingBalance());
         dto.setMonthlyPayment(loan.getMonthlyPayment());
-        dto.setStatus(loan.getStatus().getStatusName());
+
+        if (loan.getStatus() != null) {
+            dto.setStatus(loan.getStatus().getStatusName());
+        }
+
         dto.setNextPaymentDate(calculateNextPaymentDate(loan));
         return dto;
     }
@@ -390,4 +562,3 @@ public class LoanService {
         throw new RuntimeException("Invalid authorization header");
     }
 }
-

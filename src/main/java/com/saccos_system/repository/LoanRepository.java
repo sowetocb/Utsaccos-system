@@ -12,21 +12,14 @@ import java.util.Optional;
 
 @Repository
 public interface LoanRepository extends JpaRepository<Loan, Long> {
-
     Optional<Loan> findByLoanNumber(String loanNumber);
-
     List<Loan> findByProfile_ProfileId(Long profileId);
-
     List<Loan> findByProfile_ProfileIdAndStatus_StatusCode(Long profileId, String statusCode);
-
     List<Loan> findByStatus_StatusCode(String statusCode);
-
     @Query("SELECT l FROM Loan l WHERE l.status.statusCode = :statusCode AND l.endDate < CURRENT_DATE")
     List<Loan> findOverdueLoans(@Param("statusCode") String statusCode);
-
     @Query("SELECT SUM(l.principalAmount) FROM Loan l")
     Optional<BigDecimal> getTotalLoanAmount();
-
     @Query("SELECT SUM(l.remainingBalance) FROM Loan l WHERE l.status.statusCode = 'LOAN_ACTIVE'")
     Optional<BigDecimal> getTotalOutstandingBalance();
 }

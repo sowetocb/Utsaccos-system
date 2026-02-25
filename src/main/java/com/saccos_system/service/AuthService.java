@@ -33,7 +33,7 @@ public class AuthService {
     private final OTPUtil otpUtil;
     private final SMSService smsService;
     private final AuthAuditService auditService;
-    private final RoleService roleService;  // 🔴 NEW: Add RoleService
+    private final RoleService roleService; 
 
     @Value("${otp.expiry.minutes:5}")
     private int otpExpiryMinutes;

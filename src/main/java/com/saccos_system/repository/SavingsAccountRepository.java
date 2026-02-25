@@ -9,10 +9,7 @@ import java.util.Optional;
 
 @Repository
 public interface SavingsAccountRepository extends JpaRepository<SavingsAccount, Long> {
-
     Optional<SavingsAccount> findByAccountNumber(String accountNumber);
-
     Optional<SavingsAccount> findByProfile_ProfileId(Long profileId);
-
     boolean existsByAccountNumber(String accountNumber);
 }

@@ -5,7 +5,6 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-// Additional DTOs for Loan Service
 @Data
 public class LoanApplicationResponseDTO {
     private String applicationNumber;
@@ -17,4 +16,15 @@ public class LoanApplicationResponseDTO {
     private String status;
     private BigDecimal approvedAmount;
     private String rejectionReason;
+
+    //  Emergency loan specific fields
+    private String emergencyReason;
+    private String supportingDocument;
+    private Boolean documentVerified;
+    private Boolean phoneVerified;
+
+    // Guarantor information (for regular loans)
+    private String guarantorIdNumber;
+    private String guarantorName;
+    private String guarantorPhone;
 }
