@@ -4,13 +4,13 @@ package com.saccos_system.model;
 public enum LoanType {
     PERSONAL("Personal Loan", 12.0, 3.0, false),
     BUSINESS("Business Loan", 12.0, 3.0, false),
-    EMERGENCY("Emergency Loan", 18.0, 2.0, true),  // Higher interest, lower multiplier, auto-approve
+    EMERGENCY("Emergency Loan", 18.0, 2.0, true),
     EDUCATION("Education Loan", 10.0, 4.0, false),
     ASSET_FINANCING("Asset Financing", 14.0, 2.5, false);
     private final String displayName;
     private final double defaultInterestRate;
-    private final double savingsMultiplier;  // How many times savings they can borrow
-    private final boolean autoApprove;  // Whether loan is auto-approved
+    private final double savingsMultiplier;
+    private final boolean autoApprove;
 
     LoanType(String displayName, double defaultInterestRate, double savingsMultiplier, boolean autoApprove) {
         this.displayName = displayName;

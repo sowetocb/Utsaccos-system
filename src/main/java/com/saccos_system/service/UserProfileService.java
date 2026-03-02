@@ -1,12 +1,16 @@
 
 package com.saccos_system.service;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AuthDTO.ChangePasswordDTO;
+import com.saccos_system.dto.NotificationDTO.NotificationDTO;
+import com.saccos_system.dto.TransactionDTO.TransactionDTO;
+import com.saccos_system.dto.UserDTO.UpdateProfileDTO;
+import com.saccos_system.dto.UserDTO.UserDashboardDTO;
+import com.saccos_system.dto.UserDTO.UserProfileDTO;
 import com.saccos_system.model.*;
 import com.saccos_system.repository.*;
 import com.saccos_system.util.JwtTokenUtil;
 import com.saccos_system.util.PasswordUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

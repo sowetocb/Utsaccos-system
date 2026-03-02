@@ -1,7 +1,7 @@
 package com.saccos_system.controller;
 
-import com.saccos_system.dto.NotificationDTO;
-import com.saccos_system.dto.UnreadCountDTO;
+import com.saccos_system.dto.NotificationDTO.NotificationDTO;
+import com.saccos_system.dto.SavingsDTO.UnreadCountDTO;
 import com.saccos_system.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

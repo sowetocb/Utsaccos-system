@@ -2,7 +2,7 @@ package com.saccos_system.controller;
 
 
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.LoanDTO.*;
 import com.saccos_system.service.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

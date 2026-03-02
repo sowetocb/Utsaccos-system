@@ -1,8 +1,12 @@
 package com.saccos_system.service;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AdminDTO.*;
+import com.saccos_system.dto.AuthDTO.AccountSummaryDTO;
+import com.saccos_system.dto.LoanDTO.*;
+import com.saccos_system.dto.SavingsDTO.SavingsReportDTO;
+import com.saccos_system.dto.TransactionDTO.TransactionSummaryDTO;
+import com.saccos_system.dto.TransactionDTO.TransactionsReportDTO;
 import com.saccos_system.model.*;
-import com.saccos_system.model.LoanType;
 import com.saccos_system.repository.*;
 import com.saccos_system.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;

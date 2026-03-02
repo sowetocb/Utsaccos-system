@@ -7,7 +7,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -20,7 +19,7 @@ public class DebugController {
     @GetMapping("/security/deep")
     public Map<String, Object> deepSecurityCheck() {
         Map<String, Object> result = new HashMap<>();
-
+        
         // Get the current thread name
         result.put("thread", Thread.currentThread().getName());
 

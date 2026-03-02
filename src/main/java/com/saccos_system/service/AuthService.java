@@ -1,6 +1,8 @@
 package com.saccos_system.service;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AuthDTO.*;
+import com.saccos_system.dto.UserDTO.RegisterCompleteDTO;
+import com.saccos_system.dto.UserDTO.RegisterInitiateDTO;
 import com.saccos_system.model.*;
 import com.saccos_system.repository.*;
 import com.saccos_system.util.JwtTokenUtil;
@@ -12,18 +14,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AuthService {
-
     private final StaffProfileRepository staffProfileRepository;
     private final SystemUserRepository systemUserRepository;
     private final OTPVerificationRepository otpRepository;

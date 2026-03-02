@@ -1,11 +1,12 @@
 package com.saccos_system.controller;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.StatementDTO.StatementRequestDTO;
+import com.saccos_system.dto.StatementDTO.StatementResponseDTO;
+import com.saccos_system.dto.StatementDTO.StatementSummaryDTO;
 import com.saccos_system.service.StatementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;

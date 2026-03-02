@@ -1,6 +1,9 @@
 package com.saccos_system.service;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.SavingsDTO.DepositRequestDTO;
+import com.saccos_system.dto.SavingsDTO.SavingsSummaryDTO;
+import com.saccos_system.dto.SavingsDTO.WithdrawalRequestDTO;
+import com.saccos_system.dto.TransactionDTO.TransactionResponseDTO;
 import com.saccos_system.model.*;
 import com.saccos_system.repository.*;
 import com.saccos_system.util.JwtTokenUtil;
@@ -163,13 +166,13 @@ public class SavingsService {
         if (savingsAccount.getInterestRate() != null) {
             BigDecimal monthlyInterest = savingsAccount.getBalance()
                     .multiply(savingsAccount.getInterestRate())
-                    .divide(BigDecimal.valueOf(1200), 2, BigDecimal.ROUND_HALF_UP); // ✅ FIXED: Added scale and rounding
+                    .divide(BigDecimal.valueOf(1200), 2, BigDecimal.ROUND_HALF_UP);
             summary.setEstimatedMonthlyInterest(monthlyInterest);
         }
 
         // Get last month's transactions
         LocalDateTime oneMonthAgo = LocalDateTime.now().minusMonths(1);
-        // Changed from findBySavingIdAndTransactionDateAfterOrderByTransactionDateDesc to findBySavingsAccount_SavingIdAndTransactionDateAfterOrderByTransactionDateDesc
+
         List<TransactionRecord> recentTransactions = transactionRepository
                 .findBySavingsAccount_SavingIdAndTransactionDateAfterOrderByTransactionDateDesc(
                         savingsAccount.getSavingId(), oneMonthAgo);
@@ -209,6 +212,7 @@ public class SavingsService {
         transaction.setPerformedBy(performedBy);
 
         return transactionRepository.save(transaction);
+
     }
 
     private TransactionResponseDTO mapToTransactionResponse(TransactionRecord transaction) {

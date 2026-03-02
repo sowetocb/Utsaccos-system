@@ -1,8 +1,8 @@
 package com.saccos_system.service;
 
-import com.saccos_system.dto.MemberRequestDTO;
-import com.saccos_system.dto.MemberResponseDTO;
-import com.saccos_system.dto.StatusDTO;
+import com.saccos_system.dto.UserDTO.MemberRequestDTO;
+import com.saccos_system.dto.UserDTO.MemberResponseDTO;
+import com.saccos_system.dto.AdminDTO.StatusDTO;
 import com.saccos_system.model.LookupStatus;
 import com.saccos_system.model.StaffProfile;
 import com.saccos_system.repository.LookupStatusRepository;

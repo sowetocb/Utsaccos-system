@@ -1,6 +1,6 @@
 package com.saccos_system.service;
 
-import com.saccos_system.dto.NotificationDTO;
+import com.saccos_system.dto.NotificationDTO.NotificationDTO;
 import com.saccos_system.model.*;
 import com.saccos_system.repository.NotificationRepository;
 import com.saccos_system.util.JwtTokenUtil;

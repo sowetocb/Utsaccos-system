@@ -1,7 +1,10 @@
 package com.saccos_system.controller;
 
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AuthDTO.ChangePasswordDTO;
+import com.saccos_system.dto.UserDTO.UpdateProfileDTO;
+import com.saccos_system.dto.UserDTO.UserDashboardDTO;
+import com.saccos_system.dto.UserDTO.UserProfileDTO;
 import com.saccos_system.service.UserProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

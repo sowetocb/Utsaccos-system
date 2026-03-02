@@ -1,6 +1,7 @@
 package com.saccos_system.service;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AdminDTO.ScheduleItemDTO;
+import com.saccos_system.dto.LoanDTO.*;
 import com.saccos_system.model.*;
 import com.saccos_system.model.LoanType;
 import com.saccos_system.repository.*;
@@ -14,7 +15,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;

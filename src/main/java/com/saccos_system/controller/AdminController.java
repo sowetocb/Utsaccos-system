@@ -1,6 +1,9 @@
 package com.saccos_system.controller;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AdminDTO.*;
+import com.saccos_system.dto.LoanDTO.*;
+import com.saccos_system.dto.SavingsDTO.SavingsReportDTO;
+import com.saccos_system.dto.TransactionDTO.TransactionsReportDTO;
 import com.saccos_system.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -12,10 +15,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import com.saccos_system.service.LoanService;
-import java.util.HashMap;
+
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")

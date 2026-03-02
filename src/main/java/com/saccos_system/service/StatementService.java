@@ -1,8 +1,10 @@
 package com.saccos_system.service;
-import com.saccos_system.dto.*;
-        import com.saccos_system.model.*;
+import com.saccos_system.dto.StatementDTO.StatementRequestDTO;
+import com.saccos_system.dto.StatementDTO.StatementResponseDTO;
+import com.saccos_system.dto.StatementDTO.StatementSummaryDTO;
+import com.saccos_system.dto.StatementDTO.StatementTransactionDTO;
+import com.saccos_system.model.*;
         import com.saccos_system.repository.*;
-import com.saccos_system.service.NotificationService;
 import com.saccos_system.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -122,8 +124,7 @@ public class StatementService {
 
         SavingsAccount savingsAccount = getSavingsAccount(user);
 
-        // ✅ FIXED: Changed from findBySavingIdAndTransactionDateBetweenOrderByTransactionDate
-        // to findBySavingsAccount_SavingIdAndTransactionDateBetweenOrderByTransactionDate
+
         List<TransactionRecord> transactions = transactionRepository
                 .findBySavingsAccount_SavingIdAndTransactionDateBetweenOrderByTransactionDate(
                         savingsAccount.getSavingId(), startDate, endDate);
@@ -149,8 +150,7 @@ public class StatementService {
     }
 
     private BigDecimal calculateOpeningBalance(SavingsAccount account, LocalDateTime startDate) {
-        // ✅ FIXED: Changed from findTopBySavingIdAndTransactionDateBeforeOrderByTransactionDateDesc
-        // to findTopBySavingsAccount_SavingIdAndTransactionDateBeforeOrderByTransactionDateDesc
+
         Optional<TransactionRecord> lastTransaction = transactionRepository
                 .findTopBySavingsAccount_SavingIdAndTransactionDateBeforeOrderByTransactionDateDesc(
                         account.getSavingId(), startDate);

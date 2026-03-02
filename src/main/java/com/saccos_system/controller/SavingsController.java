@@ -1,6 +1,10 @@
 package com.saccos_system.controller;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.SavingsDTO.BalanceResponseDTO;
+import com.saccos_system.dto.SavingsDTO.DepositRequestDTO;
+import com.saccos_system.dto.SavingsDTO.SavingsSummaryDTO;
+import com.saccos_system.dto.SavingsDTO.WithdrawalRequestDTO;
+import com.saccos_system.dto.TransactionDTO.TransactionResponseDTO;
 import com.saccos_system.service.SavingsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

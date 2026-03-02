@@ -1,7 +1,7 @@
 package com.saccos_system.controller;
 
-import com.saccos_system.dto.MemberRequestDTO;
-import com.saccos_system.dto.MemberResponseDTO;
+import com.saccos_system.dto.UserDTO.MemberRequestDTO;
+import com.saccos_system.dto.UserDTO.MemberResponseDTO;
 import com.saccos_system.service.MemberService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

@@ -1,6 +1,8 @@
 package com.saccos_system.controller;
 
-import com.saccos_system.dto.*;
+import com.saccos_system.dto.AuthDTO.*;
+import com.saccos_system.dto.UserDTO.RegisterCompleteDTO;
+import com.saccos_system.dto.UserDTO.RegisterInitiateDTO;
 import com.saccos_system.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
