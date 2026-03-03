@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/statuses")
 public class StatusController {
 
+    @SuppressWarnings("unused")
     private final StatusService statusService;
 
     public StatusController(StatusService statusService) {
