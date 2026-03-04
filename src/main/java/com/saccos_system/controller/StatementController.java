@@ -7,6 +7,7 @@ import com.saccos_system.service.StatementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,14 @@ public class StatementController {
 
     private final StatementService statementService;
 
+    @PostMapping("/generate")
+    @Operation(summary = "Generate monthly statement")
+    public ResponseEntity<StatementResponseDTO> generateStatement(
+            @RequestHeader("Authorization") String token,
+            @Valid @RequestBody StatementRequestDTO request) {
+        StatementResponseDTO statement = statementService.generateMonthlyStatement(token, request);
+        return ResponseEntity.ok(statement);
+    }
 
     @GetMapping
     @Operation(summary = "Get statement history")
@@ -40,7 +49,21 @@ public class StatementController {
         return ResponseEntity.ok(statement);
     }
 
+    @GetMapping("/{statementNumber}/download")
+    @Operation(summary = "Download statement as PDF")
+    public ResponseEntity<byte[]> downloadStatement(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String statementNumber) {
+        byte[] pdfContent = statementService.downloadStatementPDF(token, statementNumber);
 
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename("statement-" + statementNumber + ".pdf")
+                .build());
+
+        return new ResponseEntity<>(pdfContent, headers, HttpStatus.OK);
+    }
 
     @GetMapping("/current")
     @Operation(summary = "Get current month statement")

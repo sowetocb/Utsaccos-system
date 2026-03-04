@@ -29,6 +29,7 @@ public class StatementService {
     private final TransactionRecordRepository transactionRepository;
     private final MonthlyStatementRepository statementRepository;
     private final NotificationService notificationService;
+    private final PDFService pdfService;
 
     public StatementResponseDTO generateMonthlyStatement(String token, StatementRequestDTO request) {
         Long userId = jwtTokenUtil.getUserIdFromToken(extractToken(token));
@@ -132,11 +133,6 @@ public class StatementService {
         return mapToStatementResponse(statement, transactions);
     }
 
-    public byte[] downloadStatementPDF(String token, String statementNumber) {
-        StatementResponseDTO statement = getStatementByNumber(token, statementNumber);
-        String pdfContent = generatePDFContent(statement);
-        return pdfContent.getBytes();
-    }
 
     // Helper methods
     private SystemUser getUser(Long userId) {
@@ -235,39 +231,9 @@ public class StatementService {
         return monthNames[month - 1];
     }
 
-    private String generatePDFContent(StatementResponseDTO statement) {
-        StringBuilder pdf = new StringBuilder();
-        pdf.append("=== SACCO MONTHLY STATEMENT ===\n\n");
-        pdf.append("Statement Number: ").append(statement.getStatementNumber()).append("\n");
-        pdf.append("Period: ").append(statement.getPeriod()).append("\n");
-        pdf.append("Member: ").append(statement.getMemberName()).append("\n");
-        pdf.append("Member Number: ").append(statement.getMemberNumber()).append("\n");
-        pdf.append("Account Number: ").append(statement.getAccountNumber()).append("\n\n");
-
-        pdf.append("=== SUMMARY ===\n");
-        pdf.append(String.format("Opening Balance:  %,.2f\n", statement.getOpeningBalance()));
-        pdf.append(String.format("Total Deposits:   %,.2f\n", statement.getTotalDeposits()));
-        pdf.append(String.format("Total Withdrawals:%,.2f\n", statement.getTotalWithdrawals()));
-        pdf.append(String.format("Total Interest:   %,.2f\n", statement.getTotalInterest()));
-        pdf.append(String.format("Closing Balance:  %,.2f\n\n", statement.getClosingBalance()));
-
-        pdf.append("=== TRANSACTIONS ===\n");
-        pdf.append("Date       | Description                | Deposit    | Withdrawal | Balance\n");
-        pdf.append("-----------|----------------------------|------------|------------|------------\n");
-
-        for (StatementTransactionDTO tx : statement.getTransactions()) {
-            pdf.append(String.format("%-10s | %-26s | %10s | %10s | %,.2f\n",
-                    tx.getDate(),
-                    tx.getDescription().length() > 26 ? tx.getDescription().substring(0, 23) + "..." : tx.getDescription(),
-                    tx.getDeposit().compareTo(BigDecimal.ZERO) > 0 ? String.format("%,.2f", tx.getDeposit()) : "",
-                    tx.getWithdrawal().compareTo(BigDecimal.ZERO) > 0 ? String.format("%,.2f", tx.getWithdrawal()) : "",
-                    tx.getBalance()));
-        }
-
-        pdf.append("\n=== END OF STATEMENT ===\n");
-        pdf.append("Generated on: ").append(statement.getGeneratedDate()).append("\n");
-
-        return pdf.toString();
+    public byte[] downloadStatementPDF(String token, String statementNumber) {
+        StatementResponseDTO statement = getStatementByNumber(token, statementNumber);
+        return pdfService.generateStatementPDF(statement);
     }
 
     private String extractToken(String authorizationHeader) {

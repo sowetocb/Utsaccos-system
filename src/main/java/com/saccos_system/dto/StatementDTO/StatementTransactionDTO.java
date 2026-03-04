@@ -1,7 +1,6 @@
 package com.saccos_system.dto.StatementDTO;
 
 import lombok.Data;
-
 import java.math.BigDecimal;
 
 @Data

@@ -28,7 +28,7 @@ public class SavingsService {
     private final SystemUserRepository userRepository;
     private final SavingsAccountRepository savingsAccountRepository;
     private final TransactionRecordRepository transactionRepository;
-    private final SavingsTransactionTypeRepository transactionTypeRepository;
+    //private final SavingsTransactionTypeRepository transactionTypeRepository;
     private final NotificationService notificationService;
 
     public TransactionResponseDTO deposit(String token, DepositRequestDTO request) {

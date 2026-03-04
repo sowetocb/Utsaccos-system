@@ -1,7 +1,5 @@
 package com.saccos_system.service;
 
-
-
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.font.PdfFont;
 import com.itextpdf.kernel.font.PdfFontFactory;
@@ -23,7 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 
@@ -31,20 +28,16 @@ import java.time.format.DateTimeFormatter;
 @Slf4j
 public class PDFService {
 
-    private static final DateTimeFormatter DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
     public byte[] generateStatementPDF(StatementResponseDTO statement) {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            // Initialize PDF writer
             PdfWriter writer = new PdfWriter(baos);
             PdfDocument pdf = new PdfDocument(writer);
             Document document = new Document(pdf, PageSize.A4);
             document.setMargins(20, 20, 20, 20);
 
-            // Add content
             addHeader(document, statement);
             addMemberInfo(document, statement);
             addSummary(document, statement);
@@ -53,25 +46,23 @@ public class PDFService {
 
             document.close();
 
-            log.info("PDF statement generated successfully for: {}", statement.getStatementNumber());
+            log.info("PDF generated for statement: {}", statement.getStatementNumber());
             return baos.toByteArray();
 
         } catch (Exception e) {
-            log.error("Failed to generate PDF statement: {}", e.getMessage());
+            log.error("Failed to generate PDF: {}", e.getMessage());
             throw new RuntimeException("Failed to generate PDF", e);
         }
     }
 
-    private void addHeader(Document document, StatementResponseDTO statement) throws IOException {
+    private void addHeader(Document document, StatementResponseDTO statement) throws Exception {
         PdfFont boldFont = PdfFontFactory.createFont();
 
-        // SACCO Name
         Paragraph saccoName = new Paragraph()
-                .add(new Text("SACCO SYSTEM\n").setFont(boldFont).setFontSize(20))
+                .add(new Text("UHAMIAJI SACCOS STATEMENT\n").setFont(boldFont).setFontSize(20))
                 .setTextAlignment(TextAlignment.CENTER);
         document.add(saccoName);
 
-        // Statement Title
         Paragraph title = new Paragraph()
                 .add(new Text("MONTHLY STATEMENT\n").setFontSize(16))
                 .add(new Text(statement.getPeriod()).setFontSize(14))
@@ -79,7 +70,6 @@ public class PDFService {
                 .setMarginBottom(20);
         document.add(title);
 
-        // Horizontal line
         Table line = new Table(1);
         line.addCell(new Cell().add(new Paragraph(""))
                 .setBorderBottom(new SolidBorder(ColorConstants.BLACK, 1))
@@ -95,19 +85,12 @@ public class PDFService {
         table.setMarginTop(20);
         table.setMarginBottom(20);
 
-        // Member Name
         table.addCell(createLabelCell("Member Name:"));
         table.addCell(createValueCell(statement.getMemberName()));
-
-        // Member Number
         table.addCell(createLabelCell("Member No:"));
         table.addCell(createValueCell(statement.getMemberNumber()));
-
-        // Account Number
         table.addCell(createLabelCell("Account No:"));
         table.addCell(createValueCell(statement.getAccountNumber()));
-
-        // Statement Number
         table.addCell(createLabelCell("Statement No:"));
         table.addCell(createValueCell(statement.getStatementNumber()));
 
@@ -119,19 +102,17 @@ public class PDFService {
         table.setWidth(UnitValue.createPercentValue(100));
         table.setMarginBottom(20);
 
-        // Headers
         table.addCell(createSummaryHeaderCell("Opening"));
         table.addCell(createSummaryHeaderCell("Deposits"));
         table.addCell(createSummaryHeaderCell("Withdrawals"));
         table.addCell(createSummaryHeaderCell("Interest"));
         table.addCell(createSummaryHeaderCell("Closing"));
 
-        // Values
-        table.addCell(createSummaryValueCell(statement.getOpeningBalance(), false));
-        table.addCell(createSummaryValueCell(statement.getTotalDeposits(), true));
-        table.addCell(createSummaryValueCell(statement.getTotalWithdrawals(), false));
-        table.addCell(createSummaryValueCell(statement.getTotalInterest(), true));
-        table.addCell(createSummaryValueCell(statement.getClosingBalance(), false, true));
+        table.addCell(createSummaryValueCell(statement.getOpeningBalance()));
+        table.addCell(createSummaryValueCell(statement.getTotalDeposits()));
+        table.addCell(createSummaryValueCell(statement.getTotalWithdrawals()));
+        table.addCell(createSummaryValueCell(statement.getTotalInterest()));
+        table.addCell(createSummaryValueCell(statement.getClosingBalance(), true));
 
         document.add(table);
     }
@@ -147,7 +128,6 @@ public class PDFService {
         Table table = new Table(UnitValue.createPercentArray(new float[]{1, 2.5f, 1.5f, 1, 1, 1}));
         table.setWidth(UnitValue.createPercentValue(100));
 
-        // Table headers
         String[] headers = {"Date", "Description", "Reference", "Deposit", "Withdrawal", "Balance"};
         for (String header : headers) {
             table.addHeaderCell(new Cell()
@@ -157,22 +137,13 @@ public class PDFService {
                     .setPadding(8));
         }
 
-        // Transactions
         for (StatementTransactionDTO tx : statement.getTransactions()) {
             table.addCell(createCell(tx.getDate(), TextAlignment.LEFT));
-            table.addCell(createCell(tx.getDescription(), TextAlignment.LEFT));
+            table.addCell(createCell(truncate(tx.getDescription(), 26), TextAlignment.LEFT));
             table.addCell(createCell(tx.getReference(), TextAlignment.LEFT));
-            table.addCell(createCell(
-                    tx.getDeposit().compareTo(BigDecimal.ZERO) > 0 ?
-                            String.format("%,.2f", tx.getDeposit()) : "-",
-                    TextAlignment.RIGHT));
-            table.addCell(createCell(
-                    tx.getWithdrawal().compareTo(BigDecimal.ZERO) > 0 ?
-                            String.format("%,.2f", tx.getWithdrawal()) : "-",
-                    TextAlignment.RIGHT));
-            table.addCell(createCell(
-                    String.format("%,.2f", tx.getBalance()),
-                    TextAlignment.RIGHT));
+            table.addCell(createCell(formatAmount(tx.getDeposit()), TextAlignment.RIGHT));
+            table.addCell(createCell(formatAmount(tx.getWithdrawal()), TextAlignment.RIGHT));
+            table.addCell(createCell(formatAmount(tx.getBalance()), TextAlignment.RIGHT));
         }
 
         document.add(table);
@@ -194,14 +165,6 @@ public class PDFService {
                 .setTextAlignment(TextAlignment.CENTER)
                 .setMarginTop(10);
         document.add(note);
-
-        Paragraph copyright = new Paragraph()
-                .add(new Text("© 2026 SACCO System. All rights reserved."))
-                .setFontSize(8)
-                .setFontColor(ColorConstants.GRAY)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setMarginTop(5);
-        document.add(copyright);
     }
 
     private Cell createLabelCell(String text) {
@@ -214,7 +177,7 @@ public class PDFService {
 
     private Cell createValueCell(String text) {
         return new Cell()
-                .add(new Paragraph(text))
+                .add(new Paragraph(text != null ? text : ""))
                 .setBorder(Border.NO_BORDER)
                 .setPadding(4)
                 .setTextAlignment(TextAlignment.LEFT);
@@ -228,19 +191,14 @@ public class PDFService {
                 .setPadding(8);
     }
 
-    private Cell createSummaryValueCell(BigDecimal value, boolean isPositive) {
-        return createSummaryValueCell(value, isPositive, false);
+    private Cell createSummaryValueCell(BigDecimal value) {
+        return createSummaryValueCell(value, false);
     }
 
-    private Cell createSummaryValueCell(BigDecimal value, boolean isPositive, boolean isBold) {
-        Paragraph p = new Paragraph(String.format("%,.2f", value));
+    private Cell createSummaryValueCell(BigDecimal value, boolean isBold) {
+        Paragraph p = new Paragraph(formatAmount(value));
         if (isBold) {
             p.setBold();
-        }
-        if (isPositive && value.compareTo(BigDecimal.ZERO) > 0) {
-            p.setFontColor(ColorConstants.GREEN);
-        } else if (!isPositive && value.compareTo(BigDecimal.ZERO) > 0) {
-            p.setFontColor(ColorConstants.RED);
         }
         return new Cell()
                 .add(p)
@@ -253,5 +211,15 @@ public class PDFService {
                 .add(new Paragraph(text != null ? text : ""))
                 .setTextAlignment(alignment)
                 .setPadding(6);
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return amount != null && amount.compareTo(BigDecimal.ZERO) != 0
+                ? String.format("%,.2f", amount) : "-";
+    }
+
+    private String truncate(String text, int maxLength) {
+        if (text == null) return "";
+        return text.length() > maxLength ? text.substring(0, maxLength - 3) + "..." : text;
     }
 }

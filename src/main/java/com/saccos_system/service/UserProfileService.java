@@ -106,6 +106,7 @@ public class UserProfileService {
             if (existingUser.isPresent() && !existingUser.get().getUserId().equals(userId)) {
                 throw new RuntimeException("Email already in use by another account");
             }
+
             user.setEmail(request.getEmail());
         }
 
@@ -113,7 +114,7 @@ public class UserProfileService {
         if (request.getPhone() != null && !request.getPhone().equals(user.getPhone())) {
             user.setPhone(request.getPhone());
         }
-
+        user.setUsername(request.getUsername());
         user.setModifiedDate(LocalDateTime.now());
         user.setModifiedBy(user.getUsername());
 
