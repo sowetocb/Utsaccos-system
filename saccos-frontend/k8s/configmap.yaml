@@ -49,7 +49,7 @@ data:
                    application/vnd.ms-fontobject image/svg+xml;
 
         upstream backend {
-            server saccos-backend:8080;
+            server host.docker.internal:8080;
         }
 
         server {
